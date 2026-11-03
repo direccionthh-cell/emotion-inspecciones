@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Historial - Emotion Inspecciones</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-requiere-login>
+<div class="dashboard-wrapper">
+    <aside id="sidebar" data-activo="historial"></aside>
+    <main class="main-content">
+        <div class="dashboard-header"><div>
+            <h1>🗂️ Historial de inspecciones</h1>
+            <p>Todas las inspecciones realizadas. Haz clic en una para ver el detalle.</p>
+        </div></div>
+        <div class="admin-barra">
+            <label class="mini-campo">Desde <input type="date" id="fDesde"></label>
+            <label class="mini-campo">Hasta <input type="date" id="fHasta"></label>
+            <select id="fTipo"><option value="">Todos los tipos</option></select>
+            <select id="fLugar"><option value="">Todos los lugares</option></select>
+            <select id="fRes"><option value="">Todos los resultados</option><option value="conforme">Conforme</option><option value="con_novedades">Con novedades</option></select>
+            <button class="btn-emotion" id="btnExportar">⬇ Exportar a Excel</button>
+        </div>
+        <div style="overflow-x:auto">
+            <table class="tabla">
+                <thead><tr><th>Fecha</th><th>Elemento</th><th>Lugar</th><th>Inspector</th><th>Resultado</th></tr></thead>
+                <tbody id="filas"><tr><td colspan="5">Cargando...</td></tr></tbody>
+            </table>
+        </div>
+    </main>
+</div>
+<div class="modal" id="modal"><div class="modal-caja" id="detalle"></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/tipos.js"></script>
+<script src="js/base.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+let TODAS = [];
+let elementosTodos = {};
+
+listo.then(async () => {
+    const d = new Date(); d.setMonth(d.getMonth() - 3);
+    $("fDesde").value = d.toISOString().slice(0, 10);
+    $("fTipo").innerHTML += ORDEN_TIPOS.map(t => `<option value="${t}">${TIPOS[t].icono} ${TIPOS[t].nombre}</option>`).join("");
+    $("fLugar").innerHTML += LUGARES.map(l => `<option value="${l.id}">${esc(etiquetaLugar(l))}</option>`).join("");
+
+    // Incluye elementos dados de baja para no perder su historial
+    const [{ data: ins, error }, { data: els }] = await Promise.all([
+        supa.from("insp_inspecciones").select("*").order("fecha", { ascending: false }).limit(5000),
+        supa.from("insp_elementos").select("*")
+    ]);
+    if (error) { $("filas").innerHTML = `<tr><td colspan="5">Error: ${esc(error.message)}</td></tr>`; return; }
+    (els || []).forEach(e => elementosTodos[e.id] = { ...e, lugar: LUGARES.find(l => l.id === e.lugar_id) });
+    TODAS = ins.map(i => ({ ...i, el: elementosTodos[i.elemento_id] || { codigo: "?", tipo: "" } }));
+
+    ["fDesde", "fHasta", "fTipo", "fLugar", "fRes"].forEach(i => $(i).addEventListener("input", dibujar));
+    $("btnExportar").onclick = exportar;
+    $("modal").onclick = e => { if (e.target.id === "modal" || e.target.dataset.cerrar !== undefined) $("modal").classList.remove("abierto"); };
+    dibujar();
+});
+
+// Lugar con el nombre de la campaña que tenía el día de la inspección
+function lugarDe(i) {
+    const placa = i.el.lugar?.placa;
+    if (!i.campana) return nombreLugar(i.el);
+    return placa ? `${i.campana} · ${placa}` : i.campana;
+}
+
+function filtradas() {
+    const desde = $("fDesde").value, hasta = $("fHasta").value;
+    return TODAS.filter(i => {
+        const f = new Date(i.fecha).toLocaleDateString("en-CA");
+        return (!desde || f >= desde) && (!hasta || f <= hasta)
+            && (!$("fTipo").value || i.el.tipo === $("fTipo").value)
+            && (!$("fLugar").value || String(i.el.lugar_id) === $("fLugar").value)
+            && (!$("fRes").value || i.resultado === $("fRes").value);
+    });
+}
+
+function dibujar() {
+    const lista = filtradas();
+    $("filas").innerHTML = lista.length === 0 ? `<tr><td colspan="5">No hay inspecciones en este periodo.</td></tr>`
+        : lista.map(i => {
+            const T = TIPOS[i.el.tipo] || { icono: "❔", nombre: i.el.tipo };
+            return `<tr class="clic" onclick="verDetalle(${i.id})">
+                <td>${formatoFechaHora(i.fecha)}</td>
+                <td>${T.icono} <strong>${esc(i.el.codigo)}</strong> · ${T.nombre}</td>
+                <td>${esc(lugarDe(i))}</td>
+                <td>${esc(i.inspector || "")}</td>
+                <td>${i.resultado === "conforme" ? '<span class="chip chip-verde">Conforme</span>' : '<span class="chip chip-rojo">Con novedades</span>'}</td>
+            </tr>`;
+        }).join("");
+}
+
+function verDetalle(id) {
+    const i = TODAS.find(x => x.id === id);
+    const T = TIPOS[i.el.tipo] || { icono: "❔", nombre: i.el.tipo, campos: [] };
+    const d = i.el.datos || {};
+    let sec = null;
+    const filas = (i.respuestas || []).map(r => {
+        let h = "";
+        if (r.seccion && r.seccion !== sec) { sec = r.seccion; h += `<tr><th colspan="2" class="th-sec">${esc(sec)}</th></tr>`; }
+        const inv = r.modo === "inventario" ? `<br><small>Requerido: ${r.requerida} · Encontrado: ${esc(r.cantidad)}${r.vence ? " · Vence: " + formatoFecha(r.vence) : ""}</small>` : "";
+        return h + `<tr>
+            <td>${esc(r.pregunta)}${inv}${r.nota ? `<br><small style="color:#c62828">${esc(r.nota)}</small>` : ""}
+                ${r.foto ? `<br><img class="foto-mini" src="${esc(r.foto)}" onclick="verFoto(this.src)" alt="">` : ""}</td>
+            <td style="white-space:nowrap;font-weight:700;color:${r.respuesta === "Cumple" ? "#1f8a3c" : r.respuesta === "No cumple" ? "#c62828" : "#888"}">${r.respuesta === "Cumple" ? "C" : r.respuesta === "No cumple" ? "NC" : "NA"}</td>
+        </tr>`;
+    }).join("");
+    $("detalle").innerHTML = `
+        <div class="encabezado-formato">
+            <img src="assets/images/logo-emotion.jpeg" alt="">
+            <div><strong>${esc((T.titulo || "Registro de inspección de " + T.nombre).toUpperCase())}</strong><br>
+            <small>Sistema Integrado de Gestión (SIG) · E-MOTION GLOBAL S.A.S.</small></div>
+        </div>
+        <h2>${T.icono} ${esc(i.el.codigo)} · ${T.nombre} ${i.resultado === "conforme" ? '<span class="chip chip-verde">Conforme</span>' : '<span class="chip chip-rojo">Con novedades</span>'}</h2>
+        <p style="color:#555;font-size:14px;line-height:1.6">📍 ${esc(lugarDe(i))}${i.el.ubicacion ? " – " + esc(i.el.ubicacion) : ""}<br>
+        🗓️ ${formatoFechaHora(i.fecha)} · 👤 Responsable: ${esc(i.inspector || "")}${i.copasst ? `<br>👥 Integrante del COPASST: ${esc(i.copasst)}` : ""}
+        ${(T.campos || []).filter(c => d[c.id] && c.tipo !== "month").map(c => `<br>${c.label}: <strong>${esc(c.tipo === "date" ? formatoFecha(d[c.id]) : d[c.id])}</strong>`).join("")}
+        ${(T.fechasRevision || []).filter(f => (i.datos || {})[f.id]).map(f => `<br>${f.label}: <strong>${formatoMes(i.datos[f.id])}</strong>`).join("")}
+        ${i.el.tipo === "extintor" ? `<br>Cumplimiento de la operatividad del extintor: <strong>${i.resultado === "conforme" ? "C (Cumple)" : "NC (No cumple)"}</strong>` : ""}</p>
+        <table class="tabla-simple">${filas}</table>
+        <p style="font-size:12px;color:#888">C: Cumple · NC: No cumple · NA: No aplica</p>
+        ${i.observaciones ? `<p><strong>Observaciones generales:</strong> ${esc(i.observaciones)}</p>` : ""}
+        ${(i.fotos || []).length ? `<p><strong>Fotos:</strong></p><div class="fotos">${i.fotos.map(u => `<div class="foto"><img src="${esc(u)}" onclick="verFoto(this.src)" alt=""></div>`).join("")}</div>` : ""}
+        <div class="firmas"><div>Firma del responsable de la inspección</div><div>Firma del integrante del COPASST</div></div>
+        <div class="leccion-nav"><button class="btn-secundario" onclick="window.print()">🖨️ Imprimir</button><button class="btn-emotion" data-cerrar>Cerrar</button></div>`;
+    $("modal").classList.add("abierto");
+}
+
+function exportar() {
+    const filas = [["Fecha", "Código", "Tipo", "Lugar", "Ubicación", "Responsable", "Integrante COPASST", "Resultado", "Puntos que no cumplen", "Observaciones", "Fotos"]];
+    filtradas().forEach(i => filas.push([formatoFechaHora(i.fecha), i.el.codigo, TIPOS[i.el.tipo]?.nombre || i.el.tipo, lugarDe(i), i.el.ubicacion,
+        i.inspector, i.copasst, i.resultado === "conforme" ? "Conforme" : "Con novedades",
+        (i.respuestas || []).filter(r => r.respuesta === "No cumple").map(r => r.pregunta + (r.nota ? ` (${r.nota})` : "")).join(" | "),
+        i.observaciones, [...(i.fotos || []), ...(i.respuestas || []).map(r => r.foto).filter(Boolean)].join(" ")]));
+    descargarCSV(`inspecciones-${new Date().toISOString().slice(0, 10)}.csv`, filas);
+}
+</script>
+</body>
+</html>

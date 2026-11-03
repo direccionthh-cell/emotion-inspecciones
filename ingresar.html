@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emotion Inspecciones</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="login-page">
+    <form class="login-card" id="formLogin">
+        <img src="assets/images/logo-emotion.jpeg" class="logo" alt="Emotion">
+        <h2>Inspecciones</h2>
+        <p>Ingreso de administradores</p>
+        <input type="email" id="email" class="form-control" placeholder="Correo electrónico" autocomplete="username" required>
+        <input type="password" id="password" class="form-control" placeholder="Contraseña" autocomplete="current-password">
+        <button type="submit" class="btn-emotion" id="btnIngresar">Ingresar</button>
+        <p class="login-hint">Solo para administración e historial.</p>
+        <a href="inspeccionar.html" class="login-link">✅ Hacer una inspección sin contraseña</a>
+        <p class="login-msg" id="mensaje"></p>
+    </form>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script>
+    const supa = supabase.createClient(SUPABASE_URL.startsWith("PEGA_AQUI") ? "https://x.supabase.co" : SUPABASE_URL, SUPABASE_ANON_KEY);
+    const mensaje = document.getElementById("mensaje");
+    const mostrar = (t, tipo = "error") => { mensaje.textContent = t; mensaje.className = "login-msg " + tipo; };
+
+    // Si llegó escaneando un QR, después del login vuelve a ese elemento
+    const next = new URLSearchParams(location.search).get("next");
+    const destino = next && /^[a-z]+\.html(\?[\w=&-]*)?$/.test(next) ? next : "panel.html";
+    if (SUPABASE_URL.startsWith("PEGA_AQUI")) { mostrar("Falta configurar la conexión: pega los datos de Supabase en js/config.js."); document.getElementById("btnIngresar").disabled = true; }
+    else supa.auth.getSession().then(({ data }) => { if (data.session) location.href = destino; });
+
+    document.getElementById("formLogin").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const email = document.getElementById("email").value.trim().toLowerCase();
+        const password = document.getElementById("password").value;
+        if (!email || !password) return mostrar("Por favor completa todos los campos.");
+        const btn = document.getElementById("btnIngresar");
+        btn.disabled = true; btn.textContent = "Ingresando...";
+        const { error } = await supa.auth.signInWithPassword({ email, password });
+        btn.disabled = false; btn.textContent = "Ingresar";
+        if (error) mostrar(error.message.includes("Invalid login") ? "Correo o contraseña incorrectos." : "No se pudo ingresar: " + error.message);
+        else location.href = destino;
+    });
+</script>
+</body>
+</html>

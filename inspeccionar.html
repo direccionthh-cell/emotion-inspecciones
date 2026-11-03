@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inspeccionar - Emotion Inspecciones</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="dashboard-wrapper">
+    <aside id="sidebar" data-activo="inspeccionar"></aside>
+    <main class="main-content" id="main">
+        <p>Cargando...</p>
+    </main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/tipos.js"></script>
+<script src="js/base.js"></script>
+<script>
+const main = document.getElementById("main");
+const params = new URLSearchParams(location.search);
+const id = params.get("id");
+const lugarId = params.get("lugar");
+
+listo.then(() => {
+    const el = ELEMENTOS.find(e => String(e.id) === id);
+    const lugar = LUGARES.find(l => String(l.id) === lugarId);
+    if (el) formulario(el, lugar);
+    else if (lugar) vistaLugar(lugar);
+    else if (params.get("modo") === "elemento") selector();
+    else selectorLugar();
+});
+
+// ---------- Paso 1: elegir el lugar ----------
+function selectorLugar() {
+    main.innerHTML = `
+        <div class="dashboard-header"><div>
+            <h1>✅ Hacer una inspección</h1>
+            <p>Elige la unidad o el lugar que vas a inspeccionar.</p>
+        </div></div>
+        <div class="filtros">
+            <input type="search" id="fTexto" class="buscador" placeholder="🔍 Buscar por nombre o placa...">
+            <a class="filtro" href="inspeccionar.html?modo=elemento" style="text-decoration:none">Buscar un elemento suelto</a>
+        </div>
+        <div class="lugares-grid" id="lista"></div>`;
+    fTexto.addEventListener("input", dibujar);
+    dibujar();
+    function dibujar() {
+        const t = fTexto.value.trim().toLowerCase();
+        const lista = LUGARES.map(l => ({ l, els: ELEMENTOS.filter(e => e.lugar_id === l.id) }))
+            .filter(x => x.els.length && (x.l.nombre + " " + (x.l.placa || "")).toLowerCase().includes(t));
+        document.getElementById("lista").innerHTML = lista.length ? lista.map(({ l, els }) => {
+            const hoy = els.filter(inspeccionadoHoy).length;
+            const mal = els.filter(e => ["vencido", "novedad"].includes(e.estado)).length;
+            const pend = els.filter(e => e.estado === "pendiente").length;
+            return `<a class="lugar-card" href="inspeccionar.html?lugar=${l.id}">
+                <div class="lugar-top"><strong>${esc(l.nombre)}</strong>${l.placa ? `<span class="placa">${esc(l.placa)}</span>` : ""}</div>
+                <small>${esc(l.tipo)} · ${els.length} elementos</small>
+                <div class="barra"><span style="width:${Math.round(hoy / els.length * 100)}%"></span></div>
+                <div class="lugar-chips">
+                    ${hoy ? `<span class="chip chip-verde">${hoy}/${els.length} hoy</span>` : ""}
+                    ${mal ? `<span class="chip chip-rojo">${mal} con novedad</span>` : ""}
+                    ${pend ? `<span class="chip chip-naranja">${pend} por inspeccionar</span>` : ""}
+                    ${!mal && !pend ? `<span class="chip chip-verde">Al día</span>` : ""}
+                </div>
+            </a>`;
+        }).join("") : `<div class="course-detail-box">No hay lugares con elementos registrados.</div>`;
+    }
+}
+
+// ---------- Paso 2: ronda de un lugar ----------
+function vistaLugar(lugar) {
+    const els = ELEMENTOS.filter(e => e.lugar_id === lugar.id)
+        .sort((a, b) => ORDEN_TIPOS.indexOf(a.tipo) - ORDEN_TIPOS.indexOf(b.tipo) || a.codigo.localeCompare(b.codigo));
+    const hechos = els.filter(inspeccionadoHoy);
+    const siguiente = els.find(e => !inspeccionadoHoy(e));
+    const pct = els.length ? Math.round(hechos.length / els.length * 100) : 0;
+    main.innerHTML = `
+        <a href="inspeccionar.html" class="back-link">← Elegir otro lugar</a>
+        <section class="hero">
+            <div>
+                <h1>${esc(lugar.nombre)}</h1>
+                <p>${esc(lugar.tipo)}${lugar.placa ? " · Placa " + esc(lugar.placa) : ""} · ${els.length} elementos</p>
+                <div class="barra"><span style="width:${pct}%"></span></div>
+                <p style="margin-top:8px">${hechos.length === els.length && els.length ? "🎉 ¡Todos los elementos fueron inspeccionados hoy!" : `${hechos.length} de ${els.length} inspeccionados hoy`}</p>
+            </div>
+            <div class="hero-circulo" style="background:conic-gradient(var(--orange) ${pct * 3.6}deg, rgba(255,255,255,.25) 0)"><span>${pct}%</span></div>
+        </section>
+        ${siguiente ? `<a class="btn-emotion btn-grande" href="inspeccionar.html?id=${siguiente.id}&lugar=${lugar.id}">▶ Inspeccionar ${hechos.length ? "siguiente" : "primer"} elemento: ${esc(siguiente.codigo)}</a>` : ""}
+        <h2 class="seccion-titulo">Elementos de esta unidad</h2>
+        <div class="lista-elementos">${els.map(e => filaElemento(e, "&lugar=" + lugar.id).replace(etiquetaEstado(e.estado),
+            inspeccionadoHoy(e) ? `<span class="chip chip-verde">✓ Hoy</span>` : etiquetaEstado(e.estado))).join("")}</div>`;
+}
+
+// ---------- Buscar un elemento suelto ----------
+function selector() {
+    main.innerHTML = `
+        <div class="dashboard-header"><div>
+            <h1>✅ Hacer una inspección</h1>
+            <p>Elige el elemento que vas a revisar. <a href="inspeccionar.html">O inspecciona por lugar →</a></p>
+        </div></div>
+        <div class="filtros">
+            <select id="fLugar" class="buscador" style="flex:0 1 220px"><option value="">Todos los lugares</option>
+                ${LUGARES.map(l => `<option value="${l.id}">${esc(etiquetaLugar(l))}</option>`).join("")}</select>
+            <select id="fTipo" class="buscador" style="flex:0 1 220px"><option value="">Todos los tipos</option>
+                ${ORDEN_TIPOS.map(t => `<option value="${t}">${TIPOS[t].icono} ${TIPOS[t].nombre}</option>`).join("")}</select>
+            <input type="search" id="fTexto" class="buscador" placeholder="🔍 Buscar por código o ubicación...">
+        </div>
+        <div class="lista-elementos" id="lista"></div>`;
+    ["fLugar", "fTipo", "fTexto"].forEach(i => document.getElementById(i).addEventListener("input", dibujar));
+    dibujar();
+
+    function dibujar() {
+        const lugar = fLugar.value, tipo = fTipo.value, texto = fTexto.value.trim().toLowerCase();
+        const lista = ELEMENTOS
+            .filter(e => (!lugar || String(e.lugar_id) === lugar) && (!tipo || e.tipo === tipo)
+                && (e.codigo + " " + (e.ubicacion || "") + " " + nombreLugar(e)).toLowerCase().includes(texto))
+            .sort((a, b) => ESTADOS[a.estado].orden - ESTADOS[b.estado].orden);
+        document.getElementById("lista").innerHTML = lista.length ? lista.map(filaElemento).join("")
+            : `<div class="course-detail-box">No hay elementos que coincidan.${esAdmin() ? ' Puedes registrarlos en <a href="elementos.html">Elementos</a>.' : ""}</div>`;
+    }
+}
+
+// Botones al terminar: en una ronda, ofrece el siguiente elemento del lugar
+function botonesDespues(el, lugar) {
+    if (!lugar) return `<a class="btn-emotion" href="inspeccionar.html">Inspeccionar otro</a>
+        <a class="btn-secundario" style="text-decoration:none" href="panel.html">Ir al panel</a>`;
+    el.ultima = { fecha: new Date().toISOString() };
+    const sig = ELEMENTOS.filter(e => e.lugar_id === lugar.id)
+        .sort((a, b) => ORDEN_TIPOS.indexOf(a.tipo) - ORDEN_TIPOS.indexOf(b.tipo) || a.codigo.localeCompare(b.codigo))
+        .find(e => !inspeccionadoHoy(e));
+    return sig
+        ? `<a class="btn-emotion" href="inspeccionar.html?id=${sig.id}&lugar=${lugar.id}">▶ Siguiente: ${esc(sig.codigo)}</a>
+           <a class="btn-secundario" style="text-decoration:none" href="inspeccionar.html?lugar=${lugar.id}">Ver la unidad</a>`
+        : `<a class="btn-emotion" href="inspeccionar.html?lugar=${lugar.id}">🎉 Terminar ${esc(lugar.nombre)}</a>`;
+}
+
+// ---------- Paso 3: lista de chequeo ----------
+function formulario(el, lugarRonda) {
+    const T = TIPOS[el.tipo];
+    const d = el.datos || {};
+    const clase = d.clase === "Tipo A" ? "A" : "B";   // si no está definida, se revisa la lista completa (Tipo B)
+    const hoyISO = new Date().toLocaleDateString("en-CA");
+
+    // Arma la lista de puntos a revisar a partir de las secciones del tipo
+    const respuestas = [];
+    T.secciones.forEach(sec => sec.items.forEach(it => {
+        if (sec.modo === "inventario") {
+            const req = it[clase];
+            if (!req) return;                       // no aplica para esta clase de botiquín
+            respuestas.push({ seccion: sec.titulo, modo: "inventario", pregunta: it.nombre, unidad: it.unidad, requerida: req, cantidad: "", vence: "", respuesta: null, nota: "", foto: null });
+        } else {
+            // Un punto puede ser texto o { t, obligatorio } (obligatorio = sin opción N/A)
+            const texto = typeof it === "string" ? it : it.t;
+            const ob = typeof it === "object" && (typeof it.obligatorio === "function" ? it.obligatorio(el) : !!it.obligatorio);
+            respuestas.push({ seccion: sec.titulo, modo: "check", pregunta: texto, obligatorio: ob, respuesta: null, nota: "", foto: null });
+        }
+    }));
+    const fotosGenerales = [];
+
+    const datosFicha = T.campos.filter(c => d[c.id] && c.tipo !== "month").map(c => `<small>${c.label}: <strong>${esc(c.tipo === "date" ? formatoFecha(d[c.id]) : d[c.id])}</strong></small>`).join("");
+    // Fechas de revisión (mes/año) precargadas con lo último registrado
+    const fechasIni = {};
+    (T.fechasRevision || []).forEach(f => {
+        fechasIni[f.id] = f.id === "proxima_recarga" ? (el.fecha_vencimiento || "").slice(0, 7) : (d[f.id] || "").slice(0, 7);
+    });
+
+    main.innerHTML = `
+        <a href="${lugarRonda ? "inspeccionar.html?lugar=" + lugarRonda.id : "inspeccionar.html"}" class="back-link">← ${lugarRonda ? "Volver a " + esc(lugarRonda.nombre) : "Elegir otro elemento"}</a>
+        <div class="ficha">
+            ${el.foto_url ? `<img class="miniatura grande" src="${esc(el.foto_url)}" onclick="verFoto(this.src)" alt="">` : `<div class="course-icon" style="background:${colorElemento(el)}">${T.icono}</div>`}
+            <div class="fila-info">
+                <strong>${esc(el.codigo)} · ${T.nombre}</strong>
+                <small>📍 ${esc(nombreLugar(el))}${el.ubicacion ? " – " + esc(el.ubicacion) : ""}</small>
+                ${datosFicha}
+                ${el.fecha_vencimiento ? `<small>${T.etiquetaVencimiento || "Vence"}: <strong>${textoVence(el)}</strong></small>` : ""}
+            </div>
+            ${etiquetaEstado(el.estado)}
+        </div>
+        ${el.tipo === "botiquin" && !d.clase ? `<div class="aviso" style="max-width:760px">Este botiquín aún no tiene clase (Tipo A o B) registrada; se muestra la lista completa (Tipo B). Un administrador puede definirla en Elementos → Editar.</div>` : ""}
+        <div class="quiz-box" style="max-width:760px">
+            <div class="barra"><span id="barra" style="width:0%"></span></div>
+            <div class="barra-texto" id="avance"></div>
+            <label class="campo"><span>Tu nombre completo *</span><input id="inspector" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Nombre y apellido de quien inspecciona"></label>
+            <label class="campo"><span>Integrante del COPASST que acompaña (opcional)</span><input id="copasst" autocomplete="off" placeholder="Nombre"></label>
+            ${T.fechasRevision ? `<h3 class="sec-titulo">Fechas de revisión (mes/año)</h3>
+            <div class="fechas-rev">${T.fechasRevision.map(f => `<label class="campo"><span>${f.label}</span>
+                <input type="month" data-fecha="${f.id}" value="${esc(fechasIni[f.id])}"></label>`).join("")}</div>` : ""}
+            <div id="items"></div>
+            <h3 class="sec-titulo">📷 Fotos de la inspección</h3>
+            <div class="fotos" id="fotosGen"></div>
+            <label class="btn-secundario btn-foto">📷 Agregar foto<input type="file" accept="image/*" capture="environment" id="inFotoGen" hidden></label>
+            <label class="campo"><span>Observaciones generales (opcional)</span>
+                <textarea id="obs" rows="3" placeholder="Ej: Se recomienda reubicar el extintor..."></textarea></label>
+            <div class="leccion-nav">
+                <button class="btn-secundario" id="todoCumple">Marcar pendientes como "Cumple"</button>
+                <button class="btn-emotion" id="guardar" disabled>Guardar inspección</button>
+            </div>
+        </div>`;
+
+    const BOT = { "Cumple": ["✓ Cumple", "si"], "No cumple": ["✗ No cumple", "no"], "N/A": ["N/A", "na"] };
+
+    function htmlItem(r, i) {
+        const botones = Object.entries(BOT).filter(([o]) => !(r.obligatorio && o === "N/A")).map(([o, [txt, k]]) =>
+            `<button type="button" class="op ${r.respuesta === o ? "sel-" + k : ""}" data-i="${i}" data-o="${o}">${txt}</button>`).join("");
+        const inv = r.modo === "inventario" ? `
+            <div class="inv">
+                <span class="req">Requerido: <strong>${r.requerida}</strong> ${esc(r.unidad.toLowerCase())}</span>
+                <label>Encontrado <input type="number" min="0" inputmode="numeric" class="cant" data-i="${i}" value="${esc(r.cantidad)}"></label>
+                <label>Vence <input type="date" class="vence" data-i="${i}" value="${esc(r.vence)}"></label>
+            </div>` : "";
+        const falla = r.respuesta === "No cumple" ? `
+            <input class="nota" data-i="${i}" placeholder="¿Qué encontraste? (ej: falta, vencido, dañado)" value="${esc(r.nota)}">
+            <div class="foto-item">
+                ${r.foto ? `<img src="${esc(r.foto)}" onclick="verFoto(this.src)" alt=""><button type="button" class="btn-mini quitar" data-i="${i}">Quitar foto</button>`
+                    : `<label class="btn-mini">📷 Foto de la novedad<input type="file" accept="image/*" capture="environment" class="inFoto" data-i="${i}" hidden></label>`}
+            </div>` : "";
+        return `<div class="item-check ${r.respuesta === "No cumple" ? "falla" : ""}" id="it${i}">
+            <div class="item-texto"><span>${i + 1}.</span> ${esc(r.pregunta)}</div>${inv}
+            <div class="opciones3 ${r.obligatorio ? "sin-na" : ""}">${botones}</div>${r.obligatorio ? `<div class="obligatorio">Obligatorio · no admite N/A</div>` : ""}${falla}</div>`;
+    }
+
+    function dibujarItems() {
+        let html = "", sec = null;
+        respuestas.forEach((r, i) => {
+            if (r.seccion !== sec) { sec = r.seccion; html += `<h3 class="sec-titulo">${esc(sec)}</h3>`; }
+            html += htmlItem(r, i);
+        });
+        document.getElementById("items").innerHTML = html;
+        actualizarAvance();
+    }
+    function redibujar(i) {
+        const n = document.getElementById("it" + i);
+        if (!n) return;
+        // Si el cursor está dentro, se suelta primero para evitar dobles eventos
+        if (n.contains(document.activeElement)) document.activeElement.blur();
+        const t = document.createElement("template");
+        t.innerHTML = htmlItem(respuestas[i], i).trim();
+        if (n.isConnected) n.replaceWith(t.content.firstChild);
+        actualizarAvance();
+    }
+    function actualizarAvance() {
+        const hechos = respuestas.filter(r => r.respuesta).length;
+        document.getElementById("barra").style.width = Math.round(hechos / respuestas.length * 100) + "%";
+        document.getElementById("avance").textContent = `${hechos} de ${respuestas.length} puntos revisados`;
+        document.getElementById("guardar").disabled = hechos < respuestas.length;
+    }
+    function dibujarFotosGen() {
+        document.getElementById("fotosGen").innerHTML = fotosGenerales.map((u, k) =>
+            `<div class="foto"><img src="${esc(u)}" onclick="verFoto(this.src)" alt=""><button type="button" data-k="${k}">✕</button></div>`).join("");
+    }
+
+    // Inventario: sugiere Cumple / No cumple según la cantidad y la fecha de vencimiento
+    function evaluarInventario(i) {
+        const r = respuestas[i];
+        if (r.cantidad === "") return;
+        const vencido = r.vence && r.vence < hoyISO;
+        const falta = +r.cantidad < r.requerida;
+        r.respuesta = (falta || vencido) ? "No cumple" : "Cumple";
+        if (r.respuesta === "No cumple" && !r.nota) r.nota = [falta ? `Faltan ${r.requerida - r.cantidad}` : "", vencido ? "Vencido" : ""].filter(Boolean).join(", ");
+    }
+
+    const items = document.getElementById("items");
+    items.addEventListener("click", e => {
+        const b = e.target.closest(".op");
+        if (b) {
+            const i = +b.dataset.i;
+            respuestas[i].respuesta = b.dataset.o;
+            redibujar(i);
+            if (b.dataset.o === "No cumple") document.querySelector(`.nota[data-i="${i}"]`)?.focus();
+        }
+        const q = e.target.closest(".quitar");
+        if (q) { respuestas[q.dataset.i].foto = null; redibujar(+q.dataset.i); }
+    });
+    items.addEventListener("input", e => {
+        const i = e.target.dataset.i; if (i === undefined) return;
+        if (e.target.classList.contains("nota")) respuestas[i].nota = e.target.value;
+    });
+    items.addEventListener("change", async e => {
+        const i = +e.target.dataset.i;
+        if (e.target.classList.contains("cant") || e.target.classList.contains("vence")) {
+            respuestas[i][e.target.classList.contains("cant") ? "cantidad" : "vence"] = e.target.value;
+            evaluarInventario(i); redibujar(i);
+        }
+        if (e.target.classList.contains("inFoto") && e.target.files[0]) {
+            e.target.closest("label").textContent = "⏳ Subiendo...";
+            try { respuestas[i].foto = await subirFoto(e.target.files[0], `inspecciones/${el.id}`); }
+            catch (err) { alert("No se pudo subir la foto: " + err.message); }
+            redibujar(i);
+        }
+    });
+    document.getElementById("inFotoGen").addEventListener("change", async e => {
+        const f = e.target.files[0]; if (!f) return;
+        const lbl = e.target.closest("label"); lbl.firstChild.textContent = "⏳ Subiendo...";
+        try { fotosGenerales.push(await subirFoto(f, `inspecciones/${el.id}`)); dibujarFotosGen(); }
+        catch (err) { alert("No se pudo subir la foto: " + err.message); }
+        lbl.firstChild.textContent = "📷 Agregar foto"; e.target.value = "";
+    });
+    document.getElementById("fotosGen").addEventListener("click", e => {
+        if (e.target.dataset.k !== undefined) { fotosGenerales.splice(+e.target.dataset.k, 1); dibujarFotosGen(); }
+    });
+    document.getElementById("todoCumple").addEventListener("click", () => {
+        respuestas.forEach(r => {
+            if (r.respuesta) return;
+            r.respuesta = "Cumple";
+            if (r.modo === "inventario" && r.cantidad === "") r.cantidad = String(r.requerida);
+        });
+        dibujarItems();
+    });
+
+    document.getElementById("guardar").addEventListener("click", async () => {
+        const inspector = document.getElementById("inspector").value.trim();
+        if (inspector.length < 3) { alert("Escribe tu nombre completo antes de guardar."); document.getElementById("inspector").focus(); return; }
+        const fallas = respuestas.filter(r => r.respuesta === "No cumple");
+        if (fallas.some(r => !r.nota.trim()) && !confirm("Hay puntos que no cumplen sin descripción. ¿Guardar de todas formas?")) return;
+        const btn = document.getElementById("guardar");
+        btn.disabled = true; btn.textContent = "Guardando...";
+        const { error } = await supa.from("insp_inspecciones").insert({
+            elemento_id: el.id,
+            inspector_id: USUARIO ? USUARIO.id : null,
+            inspector,
+            copasst: document.getElementById("copasst").value.trim() || null,
+            resultado: fallas.length ? "con_novedades" : "conforme",
+            respuestas: respuestas.map(({ obligatorio, ...r }) => r),
+            fotos: fotosGenerales,
+            datos: Object.fromEntries([...document.querySelectorAll("[data-fecha]")].filter(x => x.value).map(x => [x.dataset.fecha, x.value])),
+            observaciones: document.getElementById("obs").value.trim() || null
+        });
+        if (error) {
+            btn.disabled = false; btn.textContent = "Guardar inspección";
+            return alert("No se pudo guardar: " + error.message);
+        }
+        main.innerHTML = `
+            <div class="quiz-box resultado-hero" style="margin:30px auto">
+                <div style="font-size:54px">${fallas.length ? "⚠️" : "✅"}</div>
+                <h2>${fallas.length ? "Inspección guardada con novedades" : "¡Inspección guardada!"}</h2>
+                <p style="color:#777">${esc(el.codigo)} · ${T.nombre} — ${fallas.length ? `${fallas.length} punto(s) no cumplen. Reporta las novedades a HSEQ para su corrección.` : "Todo cumple."}</p>
+                ${fallas.length ? `<div class="revision">${fallas.map(f => `<div class="revision-item mal">❌ ${esc(f.pregunta)}<small>${esc(f.nota)}</small></div>`).join("")}</div>` : ""}
+                <div class="acciones">${botonesDespues(el, lugarRonda)}</div>
+            </div>`;
+        window.scrollTo(0, 0);
+    });
+
+    dibujarItems();
+}
+</script>
+</body>
+</html>

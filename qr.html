@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Códigos QR - Emotion Inspecciones</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-requiere-login>
+<div class="dashboard-wrapper">
+    <aside id="sidebar" data-activo="qr"></aside>
+    <main class="main-content">
+        <a href="elementos.html" class="back-link no-print">← Volver a Elementos</a>
+        <div class="dashboard-header no-print"><div>
+            <h1>🔳 Códigos QR</h1>
+            <p>Imprime las etiquetas y pégalas en cada unidad o elemento. Al escanearlas con el celular se abre la inspección.</p>
+        </div></div>
+        <div class="admin-barra no-print">
+            <select id="fLugar"><option value="">Todos los lugares</option></select>
+            <select id="fModo"><option value="lugar">Un QR por unidad / lugar</option><option value="elemento">Un QR por elemento</option></select>
+            <select id="fTipo"><option value="">Todos los tipos</option></select>
+            <button class="btn-emotion" onclick="window.print()">🖨️ Imprimir etiquetas</button>
+        </div>
+        <p class="nota-qr no-print" id="aviso"></p>
+        <div class="etiquetas" id="etiquetas"></div>
+    </main>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/tipos.js"></script>
+<script src="js/base.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+listo.then(() => {
+    const solo = new URLSearchParams(location.search).get("id");
+    $("fLugar").innerHTML += LUGARES.map(l => `<option value="${l.id}">${esc(etiquetaLugar(l))}</option>`).join("");
+    $("fTipo").innerHTML += ORDEN_TIPOS.map(t => `<option value="${t}">${TIPOS[t].icono} ${TIPOS[t].nombre}</option>`).join("");
+    if (solo) $("fModo").value = "elemento";
+    ["fLugar", "fTipo", "fModo"].forEach(i => $(i).addEventListener("input", dibujar));
+    $("aviso").textContent = `Los códigos apuntan a: ${urlElemento("").replace(/\?id=$/, "")}. Funcionan cuando la plataforma esté publicada en esa dirección.`;
+    dibujar();
+
+    function dibujar() {
+        $("fTipo").style.display = $("fModo").value === "lugar" ? "none" : "";
+        if ($("fModo").value === "lugar") {
+            const lugares = LUGARES.filter(l => (!$("fLugar").value || String(l.id) === $("fLugar").value) && ELEMENTOS.some(e => e.lugar_id === l.id));
+            $("etiquetas").innerHTML = lugares.map(l => {
+                const n = ELEMENTOS.filter(e => e.lugar_id === l.id).length;
+                return `<div class="etiqueta" style="--c:#5D2F8A">
+                    <div class="et-top"><img src="assets/images/logo-emotion.jpeg" alt=""><span>🚨 Inspección de seguridad</span></div>
+                    <div class="et-qr">${qrSVG(urlLugar(l.id))}</div>
+                    <div class="et-codigo" style="font-size:17px">${esc(l.nombre)}</div>
+                    <div class="et-lugar">${l.placa ? "Placa " + esc(l.placa) + "<br>" : ""}${n} elementos</div>
+                    <div class="et-pie">Escanéame para inspeccionar la unidad</div>
+                </div>`;
+            }).join("") || "<p>No hay lugares con elementos.</p>";
+            return;
+        }
+        const lista = ELEMENTOS.filter(e => solo ? String(e.id) === solo
+            : (!$("fLugar").value || String(e.lugar_id) === $("fLugar").value) && (!$("fTipo").value || e.tipo === $("fTipo").value));
+        $("etiquetas").innerHTML = lista.length ? lista.map(e => {
+            const T = TIPOS[e.tipo] || { icono: "❔", nombre: e.tipo, color: "#999" };
+            return `<div class="etiqueta" style="--c:${colorElemento(e)}">
+                <div class="et-top"><img src="assets/images/logo-emotion.jpeg" alt=""><span>${T.icono} ${T.nombre}</span></div>
+                <div class="et-qr">${qrSVG(urlElemento(e.id))}</div>
+                <div class="et-codigo">${esc(e.codigo)}</div>
+                <div class="et-lugar">${esc(nombreLugar(e))}${e.ubicacion ? "<br>" + esc(e.ubicacion) : ""}</div>
+                <div class="et-pie">Escanéame para inspeccionar</div>
+            </div>`;
+        }).join("") : "<p>No hay elementos que coincidan.</p>";
+    }
+});
+</script>
+</body>
+</html>

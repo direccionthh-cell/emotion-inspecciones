@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel - Emotion Inspecciones</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="dashboard-wrapper">
+    <aside id="sidebar" data-activo="panel"></aside>
+    <main class="main-content">
+        <section class="hero">
+            <div>
+                <h1>Inspección de elementos de seguridad</h1>
+                <p id="resumen">Cargando...</p>
+                <div class="barra"><span id="barra" style="width:0%"></span></div>
+            </div>
+            <div class="hero-circulo" id="circulo"><span id="circuloTexto">0%</span></div>
+        </section>
+
+        <div class="admin-barra">
+            <select id="fLugar"><option value="">Todos los lugares</option></select>
+            <a class="btn-emotion" href="inspeccionar.html">✅ Hacer una inspección</a>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-icon" style="background:var(--purple)">🧯</div><div><h2 id="sTotal">0</h2><p>Elementos registrados</p></div></div>
+            <div class="stat-card"><div class="stat-icon" style="background:var(--success)">✅</div><div><h2 id="sOk">0</h2><p>Al día</p></div></div>
+            <div class="stat-card"><div class="stat-icon">⏳</div><div><h2 id="sPend">0</h2><p>Por inspeccionar o por vencer</p></div></div>
+            <div class="stat-card"><div class="stat-icon" style="background:#EF4444">⚠️</div><div><h2 id="sMal">0</h2><p>Con novedades o vencidos</p></div></div>
+        </div>
+
+        <h2 class="seccion-titulo">Por tipo de elemento</h2>
+        <div class="tipos-grid" id="tipos"></div>
+
+        <h2 class="seccion-titulo">⚠️ Requieren atención</h2>
+        <div id="atencion"></div>
+    </main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/tipos.js"></script>
+<script src="js/base.js"></script>
+<script>
+listo.then(() => {
+    const sel = document.getElementById("fLugar");
+    sel.innerHTML += LUGARES.map(l => `<option value="${l.id}">${esc(etiquetaLugar(l))}</option>`).join("");
+    sel.addEventListener("change", dibujar);
+    dibujar();
+
+    function dibujar() {
+        const lugar = sel.value;
+        const lista = ELEMENTOS.filter(e => !lugar || String(e.lugar_id) === lugar);
+        const cuenta = k => lista.filter(e => k.includes(e.estado)).length;
+        const ok = cuenta(["ok"]), pend = cuenta(["pendiente", "porVencer"]), mal = cuenta(["vencido", "novedad"]);
+        const pct = lista.length ? Math.round(ok / lista.length * 100) : 0;
+
+        document.getElementById("sTotal").textContent = lista.length;
+        document.getElementById("sOk").textContent = ok;
+        document.getElementById("sPend").textContent = pend;
+        document.getElementById("sMal").textContent = mal;
+        document.getElementById("circuloTexto").textContent = pct + "%";
+        document.getElementById("circulo").style.background = `conic-gradient(var(--orange) ${pct * 3.6}deg, rgba(255,255,255,.25) 0)`;
+        document.getElementById("resumen").textContent = lista.length === 0
+            ? "Aún no hay elementos registrados. Empieza por agregarlos en Elementos."
+            : `${ok} de ${lista.length} elementos están al día.`;
+        setTimeout(() => document.getElementById("barra").style.width = pct + "%", 100);
+
+        document.getElementById("tipos").innerHTML = ORDEN_TIPOS.map(t => {
+            const T = TIPOS[t];
+            const de = lista.filter(e => e.tipo === t);
+            const malos = de.filter(e => e.estado !== "ok").length;
+            return `<a class="tipo-card" href="elementos.html?tipo=${t}">
+                <div class="course-icon" style="background:${T.color}">${T.icono}</div>
+                <strong>${T.nombre}</strong>
+                <small>${de.length} registrados</small>
+                ${de.length === 0 ? `<span class="chip chip-gris">Sin registrar</span>`
+                    : malos ? `<span class="chip chip-naranja">${malos} por atender</span>` : `<span class="chip chip-verde">Todo al día</span>`}
+            </a>`;
+        }).join("");
+
+        const atencion = lista.filter(e => e.estado !== "ok").sort((a, b) => ESTADOS[a.estado].orden - ESTADOS[b.estado].orden);
+        document.getElementById("atencion").innerHTML = atencion.length === 0
+            ? `<div class="course-detail-box">🎉 Todo está al día.</div>`
+            : `<div class="lista-elementos">${atencion.map(filaElemento).join("")}</div>`;
+    }
+});
+
+</script>
+</body>
+</html>

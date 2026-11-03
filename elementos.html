@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elementos - Emotion Inspecciones</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="dashboard-wrapper">
+    <aside id="sidebar" data-activo="elementos"></aside>
+    <main class="main-content">
+        <div class="dashboard-header"><div>
+            <h1>🧯 Elementos de seguridad</h1>
+            <p>Inventario de botiquines, extintores y demás elementos de emergencia.</p>
+        </div></div>
+
+        <div class="admin-barra">
+            <select id="fLugar"><option value="">Todos los lugares</option></select>
+            <select id="fTipo"><option value="">Todos los tipos</option></select>
+            <select id="fEstado"><option value="">Todos los estados</option></select>
+            <input type="search" class="buscador" id="fTexto" placeholder="🔍 Buscar...">
+        </div>
+        <div class="admin-barra" id="accionesAdmin" style="display:none">
+            <button class="btn-emotion" id="btnNuevo">＋ Agregar elemento</button>
+            <button class="btn-secundario" id="btnLugares">📍 Lugares</button>
+            <button class="btn-secundario" id="btnExportar">⬇ Exportar a Excel</button>
+        </div>
+        
+
+        <div style="overflow-x:auto">
+            <table class="tabla">
+                <thead><tr><th></th><th>Código</th><th>Tipo</th><th>Lugar</th><th>Estado</th><th>Última inspección</th><th>Vence / recarga</th><th></th></tr></thead>
+                <tbody id="filas"></tbody>
+            </table>
+        </div>
+    </main>
+</div>
+
+<!-- Formulario de elemento -->
+<div class="modal" id="modalElemento">
+    <form class="modal-caja" id="formElemento">
+        <h2 id="tituloForm">Agregar elemento</h2>
+        <label class="campo"><span>Tipo *</span><select id="eTipo" required></select></label>
+        <label class="campo"><span>Código *</span><input id="eCodigo" required placeholder="Ej: EXT-01"></label>
+        <label class="campo"><span>Lugar *</span><select id="eLugar" required></select></label>
+        <label class="campo"><span>Ubicación exacta</span><input id="eUbicacion" placeholder="Ej: Pasillo de la planta, junto a la puerta"></label>
+        <div id="camposTipo"></div>
+        <label class="campo" id="campoVence"><span id="etqVence">Fecha de vencimiento</span><input type="date" id="eVence"></label>
+        <div class="campo"><span>Foto del elemento</span>
+            <div class="foto-item" id="fotoElemento"></div>
+            <label class="btn-mini">📷 Tomar o elegir foto<input type="file" accept="image/*" capture="environment" id="eFoto" hidden></label>
+        </div>
+        <div class="leccion-nav">
+            <button type="button" class="btn-secundario" id="btnBorrar" style="color:#EF4444;border-color:#EF4444">Dar de baja</button>
+            <span style="flex:1"></span>
+            <button type="button" class="btn-secundario" data-cerrar>Cancelar</button>
+            <button type="submit" class="btn-emotion">Guardar</button>
+        </div>
+    </form>
+</div>
+
+<!-- Lugares -->
+<div class="modal" id="modalLugares">
+    <div class="modal-caja">
+        <h2>📍 Lugares</h2>
+        <p style="color:#777;font-size:14px">Sedes, áreas, unidades móviles y vehículos donde hay elementos. Cuando una unidad cambia de campaña usa <strong>✏️ Cambiar campaña</strong>: conserva sus elementos, sus QR y su historial.</p>
+        <div id="listaLugares"></div>
+        <form id="formLugar" class="admin-barra" style="margin-top:14px">
+            <input class="buscador" id="lNombre" placeholder="Campaña o nombre (ej: SPRITE)" required>
+            <input class="buscador" id="lPlaca" placeholder="Placa (opcional)" style="flex:0 1 140px">
+            <select id="lTipo"></select>
+            <button class="btn-emotion" type="submit">Agregar</button>
+        </form>
+        <div class="leccion-nav"><span></span><button type="button" class="btn-secundario" data-cerrar>Cerrar</button></div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/tipos.js"></script>
+<script src="js/base.js"></script>
+<script>
+let editando = null;
+let fotoActual = null;
+const $ = id => document.getElementById(id);
+
+listo.then(() => {
+    const params = new URLSearchParams(location.search);
+    $("fTipo").innerHTML += ORDEN_TIPOS.map(t => `<option value="${t}">${TIPOS[t].icono} ${TIPOS[t].nombre}</option>`).join("");
+    $("fEstado").innerHTML += Object.entries(ESTADOS).map(([k, v]) => `<option value="${k}">${v.texto}</option>`).join("");
+    $("eTipo").innerHTML = ORDEN_TIPOS.map(t => `<option value="${t}">${TIPOS[t].icono} ${TIPOS[t].nombre}</option>`).join("");
+    $("lTipo").innerHTML = TIPOS_LUGAR.map(t => `<option>${t}</option>`).join("");
+    if (params.get("tipo")) $("fTipo").value = params.get("tipo");
+    llenarLugares();
+    ["fLugar", "fTipo", "fEstado", "fTexto"].forEach(i => $(i).addEventListener("input", dibujar));
+
+    if (esAdmin()) {
+        $("accionesAdmin").style.display = "flex";
+        $("btnNuevo").onclick = () => abrirForm(null);
+        $("btnLugares").onclick = () => { dibujarLugares(); $("modalLugares").classList.add("abierto"); };
+        $("btnExportar").onclick = exportar;
+    }
+    document.querySelectorAll("[data-cerrar]").forEach(b => b.onclick = () => b.closest(".modal").classList.remove("abierto"));
+    $("eTipo").onchange = ajustarTipo;
+    $("formElemento").onsubmit = guardar;
+    $("btnBorrar").onclick = darDeBaja;
+    $("formLugar").onsubmit = agregarLugar;
+    $("eFoto").onchange = async e => {
+        const f = e.target.files[0]; if (!f) return;
+        $("fotoElemento").innerHTML = "⏳ Subiendo...";
+        try { fotoActual = await subirFoto(f, "elementos"); } catch (err) { alert("No se pudo subir la foto: " + err.message); }
+        dibujarFotoElemento(); e.target.value = "";
+    };
+    dibujar();
+});
+
+function llenarLugares() {
+    const opts = LUGARES.map(l => `<option value="${l.id}">${esc(etiquetaLugar(l))}</option>`).join("");
+    $("fLugar").innerHTML = `<option value="">Todos los lugares</option>` + opts;
+    $("eLugar").innerHTML = opts;
+}
+
+function dibujar() {
+    const lugar = $("fLugar").value, tipo = $("fTipo").value, estado = $("fEstado").value, texto = $("fTexto").value.trim().toLowerCase();
+    const lista = ELEMENTOS.filter(e => (!lugar || String(e.lugar_id) === lugar) && (!tipo || e.tipo === tipo) && (!estado || e.estado === estado)
+        && (e.codigo + " " + (e.ubicacion || "") + " " + resumenDatos(e) + " " + nombreLugar(e)).toLowerCase().includes(texto));
+    $("filas").innerHTML = lista.length === 0
+        ? `<tr><td colspan="8">${ELEMENTOS.length ? "No hay elementos que coincidan." : esAdmin() ? "Aún no hay elementos. Haz clic en <strong>＋ Agregar elemento</strong>." : "Aún no hay elementos registrados."}</td></tr>`
+        : lista.map(e => {
+            const T = TIPOS[e.tipo] || { icono: "❔", nombre: e.tipo };
+            const datos = resumenDatos(e);
+            return `<tr>
+                <td>${miniatura(e, T)}</td>
+                <td><strong>${esc(e.codigo)}</strong>${datos ? `<br><small style="color:#888">${esc(datos)}</small>` : ""}</td>
+                <td>${T.icono} ${T.nombre}</td>
+                <td>${esc(nombreLugar(e))}${e.ubicacion ? `<br><small style="color:#888">${esc(e.ubicacion)}</small>` : ""}</td>
+                <td>${etiquetaEstado(e.estado)}</td>
+                <td>${e.ultima ? formatoFecha(e.ultima.fecha) : "—"}<br><small style="color:#888">Próxima: ${proximaInspeccion(e)}</small></td>
+                <td>${textoVence(e)}</td>
+                <td style="white-space:nowrap"><a href="inspeccionar.html?id=${e.id}">Inspeccionar</a>${USUARIO ? " · " : ""}${USUARIO ? `<a href="qr.html?id=${e.id}">QR</a>` : ""}${esAdmin() ? ` · <a href="#" onclick="abrirForm(${e.id});return false">Editar</a>` : ""}</td>
+            </tr>`;
+        }).join("");
+}
+
+function ajustarTipo() {
+    const T = TIPOS[$("eTipo").value];
+    $("campoVence").style.display = T.usaVencimiento ? "" : "none";
+    $("etqVence").textContent = (T.etiquetaVencimiento || "Fecha de vencimiento") + (T.vencimientoMes ? " (mes/año)" : "");
+    const tipoVence = T.vencimientoMes ? "month" : "date";
+    if ($("eVence").type !== tipoVence) { const v = $("eVence").value; $("eVence").type = tipoVence; $("eVence").value = tipoVence === "month" ? v.slice(0, 7) : ""; }
+    const d = editando?.tipo === $("eTipo").value ? (editando.datos || {}) : {};
+    $("camposTipo").innerHTML = T.campos.map(c => `<label class="campo"><span>${c.label}</span>${
+        c.tipo === "select" ? `<select data-campo="${c.id}"><option value="">— Seleccionar —</option>${c.opciones.map(o => `<option ${d[c.id] === o ? "selected" : ""}>${o}</option>`).join("")}</select>`
+        : `<input type="${c.tipo}" data-campo="${c.id}" value="${esc(d[c.id] || "")}" placeholder="${esc(c.placeholder || "")}">`}</label>`).join("");
+    if (!editando) {
+        const n = ELEMENTOS.filter(e => e.tipo === $("eTipo").value).length + 1;
+        $("eCodigo").value = `${T.prefijo}-${String(n).padStart(2, "0")}`;
+    }
+}
+
+function abrirForm(id) {
+    if (!LUGARES.length) return alert("Primero agrega al menos un lugar en 📍 Lugares.");
+    editando = id ? ELEMENTOS.find(e => e.id === id) : null;
+    $("tituloForm").textContent = editando ? "Editar elemento" : "Agregar elemento";
+    $("btnBorrar").style.display = editando ? "" : "none";
+    $("eTipo").value = editando?.tipo || $("fTipo").value || "extintor";
+    $("eCodigo").value = editando?.codigo || "";
+    $("eLugar").value = editando?.lugar_id || $("fLugar").value || LUGARES[0].id;
+    $("eUbicacion").value = editando?.ubicacion || "";
+    fotoActual = editando?.foto_url || null;
+    dibujarFotoElemento();
+    $("eVence").type = "date";
+    $("eVence").value = editando?.fecha_vencimiento || "";
+    ajustarTipo();
+    $("modalElemento").classList.add("abierto");
+}
+
+async function guardar(ev) {
+    ev.preventDefault();
+    const T = TIPOS[$("eTipo").value];
+    const fila = {
+        tipo: $("eTipo").value,
+        codigo: $("eCodigo").value.trim().toUpperCase(),
+        lugar_id: +$("eLugar").value,
+        ubicacion: $("eUbicacion").value.trim() || null,
+        datos: Object.fromEntries([...document.querySelectorAll("#camposTipo [data-campo]")].filter(x => x.value.trim()).map(x => [x.dataset.campo, x.value.trim()])),
+        foto_url: fotoActual,
+        fecha_vencimiento: T.usaVencimiento && $("eVence").value ? (T.vencimientoMes ? finDeMes($("eVence").value.slice(0, 7)) : $("eVence").value) : null
+    };
+    const q = editando ? supa.from("insp_elementos").update(fila).eq("id", editando.id) : supa.from("insp_elementos").insert(fila);
+    const { error } = await q;
+    if (error) return alert("No se pudo guardar: " + error.message);
+    $("modalElemento").classList.remove("abierto");
+    await cargarDatos(); dibujar();
+}
+
+async function darDeBaja() {
+    if (!confirm(`¿Dar de baja ${editando.codigo}? Dejará de aparecer, pero su historial se conserva.`)) return;
+    const { error } = await supa.from("insp_elementos").update({ activo: false }).eq("id", editando.id);
+    if (error) return alert("No se pudo: " + error.message);
+    $("modalElemento").classList.remove("abierto");
+    await cargarDatos(); dibujar();
+}
+
+function dibujarFotoElemento() {
+    $("fotoElemento").innerHTML = fotoActual ? `<img src="${esc(fotoActual)}" onclick="verFoto(this.src)" alt=""><button type="button" class="btn-mini" onclick="fotoActual=null;dibujarFotoElemento()">Quitar</button>` : "";
+}
+
+function dibujarLugares() {
+    $("listaLugares").innerHTML = LUGARES.length ? LUGARES.map(l => {
+        const n = ELEMENTOS.filter(e => e.lugar_id === l.id).length;
+        return `<div class="fila-lugar"><span><strong>${esc(l.nombre)}</strong> <small>${esc(l.tipo)}${l.placa ? " · " + esc(l.placa) : ""} · ${n} elementos</small></span>
+            <span style="white-space:nowrap"><button class="btn-mini" onclick="cambiarCampana(${l.id})">✏️ Cambiar campaña</button>
+            <button class="btn-mini" onclick="quitarLugar(${l.id}, ${n})">Desactivar</button></span></div>`;
+    }).join("") : "<p>No hay lugares.</p>";
+}
+
+async function agregarLugar(ev) {
+    ev.preventDefault();
+    const { error } = await supa.from("insp_lugares").insert({ nombre: $("lNombre").value.trim(), tipo: $("lTipo").value, placa: $("lPlaca").value.trim().toUpperCase() || null });
+    if (error) return alert("No se pudo: " + error.message);
+    $("lNombre").value = ""; $("lPlaca").value = "";
+    await cargarDatos(); llenarLugares(); dibujarLugares(); dibujar();
+}
+
+// Campañas itinerantes: la unidad (placa) se queda con sus elementos y QR; solo cambia el nombre
+async function cambiarCampana(id) {
+    const l = LUGARES.find(x => x.id === id);
+    const nuevo = prompt(`Nueva campaña para ${l.placa ? "la placa " + l.placa : l.nombre}:\n(Actual: ${l.nombre})`, "");
+    if (!nuevo || !nuevo.trim()) return;
+    const { error } = await supa.from("insp_lugares").update({ nombre: nuevo.trim().toUpperCase() }).eq("id", id);
+    if (error) return alert("No se pudo: " + error.message);
+    await cargarDatos(); llenarLugares(); dibujarLugares(); dibujar();
+}
+
+async function quitarLugar(id, n) {
+    if (n > 0) return alert("Este lugar tiene elementos. Muévelos o dalos de baja primero.");
+    const { error } = await supa.from("insp_lugares").update({ activo: false }).eq("id", id);
+    if (error) return alert("No se pudo: " + error.message);
+    await cargarDatos(); llenarLugares(); dibujarLugares();
+}
+
+function exportar() {
+    const filas = [["Código", "Tipo", "Lugar", "Ubicación", "Datos", "Estado", "Última inspección", "Próxima inspección", "Vence / recarga"]];
+    ELEMENTOS.forEach(e => filas.push([e.codigo, TIPOS[e.tipo]?.nombre || e.tipo, nombreLugar(e), e.ubicacion, resumenDatos(e),
+        ESTADOS[e.estado].texto, e.ultima ? formatoFecha(e.ultima.fecha) : "", proximaInspeccion(e), textoVence(e)]));
+    descargarCSV(`inventario-elementos-${new Date().toISOString().slice(0, 10)}.csv`, filas);
+}
+</script>
+</body>
+</html>

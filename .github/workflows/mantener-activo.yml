@@ -1,0 +1,29 @@
+# =====================================================================
+# MANTENER ACTIVO — evita que Supabase (plan gratis) pause los proyectos
+# por inactividad. Cada 3 días hace una consulta sencilla a cada base
+# de datos. Se ejecuta solo en GitHub, gratis.
+# Para probarlo: GitHub → pestaña "Actions" → "Mantener Supabase activo"
+#                → "Run workflow".
+# =====================================================================
+name: Mantener Supabase activo
+
+on:
+  schedule:
+    - cron: "17 13 */3 * *"   # cada 3 días, 8:17 a. m. hora Colombia
+  workflow_dispatch:           # permite ejecutarlo a mano
+
+jobs:
+  despertar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Consultar Emotion Inspecciones
+        run: |
+          curl -sS -f -o /dev/null -w "Inspecciones: %{http_code}\n" \
+            "https://zfgrxmvjcgqmxdqlvjnc.supabase.co/rest/v1/insp_lugares?select=id&limit=1" \
+            -H "apikey: sb_publishable_Gzp5-dTLcOhla2KJuYOBFg_gtaz8XW1"
+
+      - name: Consultar Emotion Campus
+        run: |
+          curl -sS -o /dev/null -w "Campus: %{http_code}\n" \
+            "https://ewjxixvdvxwzrcdwebmd.supabase.co/rest/v1/perfiles?select=id&limit=1" \
+            -H "apikey: sb_publishable_RTMHHKnEYGzCcAU_hl_tyw_-T4x_dZn"
