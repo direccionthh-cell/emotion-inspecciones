@@ -170,6 +170,8 @@ function formulario(el, lugarRonda) {
             respuestas.push({ seccion: sec.titulo, modo: "inventario", pregunta: it.nombre, unidad: it.unidad, requerida: req, cantidad: "", vence: "", respuesta: null, nota: "", foto: null });
         } else {
             // Un punto puede ser texto o { t, obligatorio } (obligatorio = sin opción N/A)
+            // Puntos que solo aplican a ciertos elementos (ej. manómetro: no en CO2)
+            if (typeof it === "object" && typeof it.soloSi === "function" && !it.soloSi(el)) return;
             const texto = typeof it === "string" ? it : it.t;
             const ob = typeof it === "object" && (typeof it.obligatorio === "function" ? it.obligatorio(el) : !!it.obligatorio);
             respuestas.push({ seccion: sec.titulo, modo: "check", pregunta: texto, obligatorio: ob, respuesta: null, nota: "", foto: null });

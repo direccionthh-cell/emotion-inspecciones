@@ -22,6 +22,11 @@ function senalObligatoria(el) {
     return !PLACAS_SENAL_OPCIONAL.includes(el.lugar?.placa || "");
 }
 
+// ¿Es un extintor de CO2? (no tiene manómetro; se controla por peso)
+function esCO2(el) {
+    return /^CO2/i.test(((el && el.datos) || {}).agente || "");
+}
+
 // ¿El lugar del elemento tiene un elemento de este tipo? (ej. si la unidad tiene camilla)
 function tieneElemento(el, tipo) {
     return typeof ELEMENTOS !== "undefined" && ELEMENTOS.some(e => e.lugar_id === el.lugar_id && e.tipo === tipo);
@@ -75,7 +80,8 @@ const TIPOS = {
                     "Etiqueta de instrucciones de manejo (visible)",
                     "Manija de transporte",
                     "Palanca de descarga",
-                    "Manómetro (aguja en zona normal: ni sobrecargado ni descargado)",
+                    { t: "Manómetro (aguja en zona normal: ni sobrecargado ni descargado)", soloSi: el => !esCO2(el) },
+                    { t: "Carga verificada por peso (el CO2 no tiene manómetro): peso dentro de lo indicado en la etiqueta y precinto intacto", soloSi: esCO2 },
                     "Boquilla o corneta",
                     "Manguera",
                     "Collar de servicio",
