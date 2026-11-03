@@ -122,6 +122,24 @@ function selector() {
     }
 }
 
+// Copia de la inspección en Google Drive (si está configurada en js/config.js)
+function enviarCopiaDrive(el, x) {
+    if (typeof URL_GOOGLE_DRIVE !== "string" || !URL_GOOGLE_DRIVE) return;
+    const T = TIPOS[el.tipo] || { nombre: el.tipo };
+    const datos = Object.fromEntries([...document.querySelectorAll("[data-fecha]")].filter(i => i.value).map(i => [i.dataset.fecha, i.value]));
+    const cuerpo = {
+        fecha: new Date().toISOString(),
+        lugar: el.lugar?.nombre, placa: el.lugar?.placa, codigo: el.codigo, tipo: T.nombre, ubicacion: el.ubicacion,
+        inspector: x.inspector, copasst: x.copasst,
+        resultado: x.fallas.length ? "con_novedades" : "conforme",
+        respuestas: x.respuestas.map(r => ({ seccion: r.seccion, pregunta: r.pregunta, respuesta: r.respuesta, nota: r.nota, foto: r.foto, requerida: r.requerida, cantidad: r.cantidad, vence: r.vence })),
+        fotos: x.fotosGenerales, datos,
+        observaciones: document.getElementById("obs")?.value.trim() || ""
+    };
+    // "no-cors" + texto plano: Google lo recibe sin pedir permisos extra
+    fetch(URL_GOOGLE_DRIVE, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(cuerpo) }).catch(() => {});
+}
+
 // Botones al terminar: en una ronda, ofrece el siguiente elemento del lugar
 function botonesDespues(el, lugar) {
     if (!lugar) return `<a class="btn-emotion" href="inspeccionar.html">Inspeccionar otro</a>
@@ -331,6 +349,7 @@ function formulario(el, lugarRonda) {
             btn.disabled = false; btn.textContent = "Guardar inspección";
             return alert("No se pudo guardar: " + error.message);
         }
+        enviarCopiaDrive(el, { inspector, copasst: document.getElementById("copasst").value.trim(), fallas, respuestas, fotosGenerales });
         main.innerHTML = `
             <div class="quiz-box resultado-hero" style="margin:30px auto">
                 <div style="font-size:54px">${fallas.length ? "⚠️" : "✅"}</div>
