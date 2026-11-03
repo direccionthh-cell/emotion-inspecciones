@@ -330,11 +330,33 @@ const TIPOS = {
 const ORDEN_TIPOS = ["extintor", "botiquin", "camilla", "antiderrame", "fichas", "senalizacion", "alturas", "lavaojos"];
 const TIPOS_LUGAR = ["Sede", "Unidad móvil", "Camioneta", "Microbús", "Furgón", "Van", "Vehículo"];
 
-// Color de cada elemento: extintor ABC amarillo; CO2, Solkaflam y demás extintores rojos
+// Color de cada elemento: extintor ABC amarillo, Solkaflam plateado; CO2 y demás extintores rojos
 function colorElemento(e) {
     const T = TIPOS[e.tipo] || { color: "#999" };
     if (e.tipo === "extintor" && /^ABC/i.test((e.datos || {}).agente || "")) return "#EAB308";
+    if (e.tipo === "extintor" && /^Solkaflam/i.test((e.datos || {}).agente || "")) return "#8D99A6";   // plateado
     return T.color;
+}
+
+// Agente corto del extintor: "ABC", "BC", "CO2", "Solkaflam", "Agua"
+function agenteCorto(e) {
+    const a = ((e.datos || {}).agente || "").trim();
+    if (!a) return "";
+    return a.split(" ")[0] === "Solkaflam" ? "Solkaflam" : a.split(" ")[0];
+}
+
+// Nombre visible del elemento: "Extintor ABC", "Extintor CO2"… (texto)
+function nombreElemento(e) {
+    const T = TIPOS[e.tipo] || { nombre: e.tipo };
+    const ag = e.tipo === "extintor" ? agenteCorto(e) : "";
+    return ag ? `${T.nombre} ${ag}` : T.nombre;
+}
+
+// Igual, pero con el agente como etiqueta de color llamativa (HTML)
+function nombreElementoHTML(e) {
+    const T = TIPOS[e.tipo] || { nombre: e.tipo };
+    const ag = e.tipo === "extintor" ? agenteCorto(e) : "";
+    return ag ? `${T.nombre} <span class="agente" style="background:${colorElemento(e)}">${ag}</span>` : T.nombre;
 }
 
 // Texto corto con los datos del elemento (ej. "ABC (Polvo químico seco) · 20 lb")

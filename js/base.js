@@ -189,7 +189,7 @@ function filaElemento(e, sufijo = "") {
     if (e.fecha_vencimiento) extra += ` · ${T.etiquetaVencimiento || "Vence"}: ${textoVence(e)}`;
     return `<a class="fila-elemento" href="inspeccionar.html?id=${e.id}${sufijo}">
         ${miniatura(e, T)}
-        <div class="fila-info"><strong>${esc(e.codigo)} · ${T.nombre}</strong>${sufijo.includes("lugar") && !e.ubicacion ? "" : `<small>📍 ${sufijo.includes("lugar") ? esc(e.ubicacion) : esc(nombreLugar(e)) + (e.ubicacion ? " – " + esc(e.ubicacion) : "")}</small>`}${datos ? `<small>${esc(datos)}</small>` : ""}<small>${extra}</small></div>
+        <div class="fila-info"><strong>${esc(e.codigo)} · ${nombreElementoHTML(e)}</strong>${sufijo.includes("lugar") && !e.ubicacion ? "" : `<small>📍 ${sufijo.includes("lugar") ? esc(e.ubicacion) : esc(nombreLugar(e)) + (e.ubicacion ? " – " + esc(e.ubicacion) : "")}</small>`}${datos ? `<small>${esc(datos)}</small>` : ""}<small>${extra}</small></div>
         ${etiquetaEstado(e.estado)}
     </a>`;
 }

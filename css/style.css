@@ -615,3 +615,6 @@ label.btn-mini { display: inline-block; }
 
 .opciones3.sin-na { grid-template-columns: 1fr 1fr; }
 .obligatorio { font-size: 11px; color: #c26515; font-weight: 700; margin-top: 6px; text-transform: uppercase; letter-spacing: .3px; }
+
+/* Agente del extintor bien visible */
+.agente { display: inline-block; color: #fff; font-weight: 800; font-size: .85em; padding: 1px 8px; border-radius: 6px; letter-spacing: .5px; vertical-align: 1px; text-shadow: 0 1px 1px rgba(0,0,0,.25); }

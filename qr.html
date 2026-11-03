@@ -62,7 +62,7 @@ listo.then(() => {
         $("etiquetas").innerHTML = lista.length ? lista.map(e => {
             const T = TIPOS[e.tipo] || { icono: "❔", nombre: e.tipo, color: "#999" };
             return `<div class="etiqueta" style="--c:${colorElemento(e)}">
-                <div class="et-top"><img src="assets/images/logo-emotion.jpeg" alt=""><span>${T.icono} ${T.nombre}</span></div>
+                <div class="et-top"><img src="assets/images/logo-emotion.jpeg" alt=""><span>${T.icono} ${esc(nombreElemento(e))}</span></div>
                 <div class="et-qr">${qrSVG(urlElemento(e.id))}</div>
                 <div class="et-codigo">${esc(e.codigo)}</div>
                 <div class="et-lugar">${esc(nombreLugar(e))}${e.ubicacion ? "<br>" + esc(e.ubicacion) : ""}</div>

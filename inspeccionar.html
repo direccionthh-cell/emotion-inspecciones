@@ -129,7 +129,7 @@ function enviarCopiaDrive(el, x) {
     const datos = Object.fromEntries([...document.querySelectorAll("[data-fecha]")].filter(i => i.value).map(i => [i.dataset.fecha, i.value]));
     const cuerpo = {
         fecha: new Date().toISOString(),
-        lugar: el.lugar?.nombre, placa: el.lugar?.placa, codigo: el.codigo, tipo: T.nombre, ubicacion: el.ubicacion,
+        lugar: el.lugar?.nombre, placa: el.lugar?.placa, codigo: el.codigo, tipo: nombreElemento(el), ubicacion: el.ubicacion,
         inspector: x.inspector, copasst: x.copasst,
         resultado: x.fallas.length ? "con_novedades" : "conforme",
         respuestas: x.respuestas.map(r => ({ seccion: r.seccion, pregunta: r.pregunta, respuesta: r.respuesta, nota: r.nota, foto: r.foto, requerida: r.requerida, cantidad: r.cantidad, vence: r.vence })),
@@ -189,7 +189,7 @@ function formulario(el, lugarRonda) {
         <div class="ficha">
             ${el.foto_url ? `<img class="miniatura grande" src="${esc(el.foto_url)}" onclick="verFoto(this.src)" alt="">` : `<div class="course-icon" style="background:${colorElemento(el)}">${T.icono}</div>`}
             <div class="fila-info">
-                <strong>${esc(el.codigo)} · ${T.nombre}</strong>
+                <strong>${esc(el.codigo)} · ${nombreElementoHTML(el)}</strong>
                 <small>📍 ${esc(nombreLugar(el))}${el.ubicacion ? " – " + esc(el.ubicacion) : ""}</small>
                 ${datosFicha}
                 ${el.fecha_vencimiento ? `<small>${T.etiquetaVencimiento || "Vence"}: <strong>${textoVence(el)}</strong></small>` : ""}
@@ -354,7 +354,7 @@ function formulario(el, lugarRonda) {
             <div class="quiz-box resultado-hero" style="margin:30px auto">
                 <div style="font-size:54px">${fallas.length ? "⚠️" : "✅"}</div>
                 <h2>${fallas.length ? "Inspección guardada con novedades" : "¡Inspección guardada!"}</h2>
-                <p style="color:#777">${esc(el.codigo)} · ${T.nombre} — ${fallas.length ? `${fallas.length} punto(s) no cumplen. Reporta las novedades a HSEQ para su corrección.` : "Todo cumple."}</p>
+                <p style="color:#777">${esc(el.codigo)} · ${esc(nombreElemento(el))} — ${fallas.length ? `${fallas.length} punto(s) no cumplen. Reporta las novedades a HSEQ para su corrección.` : "Todo cumple."}</p>
                 ${fallas.length ? `<div class="revision">${fallas.map(f => `<div class="revision-item mal">❌ ${esc(f.pregunta)}<small>${esc(f.nota)}</small></div>`).join("")}</div>` : ""}
                 <div class="acciones">${botonesDespues(el, lugarRonda)}</div>
             </div>`;

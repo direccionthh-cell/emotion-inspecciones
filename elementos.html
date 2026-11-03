@@ -133,7 +133,7 @@ function dibujar() {
             return `<tr>
                 <td>${miniatura(e, T)}</td>
                 <td><strong>${esc(e.codigo)}</strong>${datos ? `<br><small style="color:#888">${esc(datos)}</small>` : ""}</td>
-                <td>${T.icono} ${T.nombre}</td>
+                <td>${T.icono} ${nombreElementoHTML(e)}</td>
                 <td>${esc(nombreLugar(e))}${e.ubicacion ? `<br><small style="color:#888">${esc(e.ubicacion)}</small>` : ""}</td>
                 <td>${etiquetaEstado(e.estado)}</td>
                 <td>${e.ultima ? formatoFecha(e.ultima.fecha) : "—"}<br><small style="color:#888">Próxima: ${proximaInspeccion(e)}</small></td>
@@ -243,7 +243,7 @@ async function quitarLugar(id, n) {
 
 function exportar() {
     const filas = [["Código", "Tipo", "Lugar", "Ubicación", "Datos", "Estado", "Última inspección", "Próxima inspección", "Vence / recarga"]];
-    ELEMENTOS.forEach(e => filas.push([e.codigo, TIPOS[e.tipo]?.nombre || e.tipo, nombreLugar(e), e.ubicacion, resumenDatos(e),
+    ELEMENTOS.forEach(e => filas.push([e.codigo, nombreElemento(e), nombreLugar(e), e.ubicacion, resumenDatos(e),
         ESTADOS[e.estado].texto, e.ultima ? formatoFecha(e.ultima.fecha) : "", proximaInspeccion(e), textoVence(e)]));
     descargarCSV(`inventario-elementos-${new Date().toISOString().slice(0, 10)}.csv`, filas);
 }

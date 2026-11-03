@@ -87,7 +87,7 @@ function dibujar() {
             const T = TIPOS[i.el.tipo] || { icono: "❔", nombre: i.el.tipo };
             return `<tr class="clic" onclick="verDetalle(${i.id})">
                 <td>${formatoFechaHora(i.fecha)}</td>
-                <td>${T.icono} <strong>${esc(i.el.codigo)}</strong> · ${T.nombre}</td>
+                <td>${T.icono} <strong>${esc(i.el.codigo)}</strong> · ${nombreElementoHTML(i.el)}</td>
                 <td>${esc(lugarDe(i))}</td>
                 <td>${esc(i.inspector || "")}</td>
                 <td>${i.resultado === "conforme" ? '<span class="chip chip-verde">Conforme</span>' : '<span class="chip chip-rojo">Con novedades</span>'}</td>
@@ -116,7 +116,7 @@ function verDetalle(id) {
             <div><strong>${esc((T.titulo || "Registro de inspección de " + T.nombre).toUpperCase())}</strong><br>
             <small>Sistema Integrado de Gestión (SIG) · E-MOTION GLOBAL S.A.S.</small></div>
         </div>
-        <h2>${T.icono} ${esc(i.el.codigo)} · ${T.nombre} ${i.resultado === "conforme" ? '<span class="chip chip-verde">Conforme</span>' : '<span class="chip chip-rojo">Con novedades</span>'}</h2>
+        <h2>${T.icono} ${esc(i.el.codigo)} · ${nombreElementoHTML(i.el)} ${i.resultado === "conforme" ? '<span class="chip chip-verde">Conforme</span>' : '<span class="chip chip-rojo">Con novedades</span>'}</h2>
         <p style="color:#555;font-size:14px;line-height:1.6">📍 ${esc(lugarDe(i))}${i.el.ubicacion ? " – " + esc(i.el.ubicacion) : ""}<br>
         🗓️ ${formatoFechaHora(i.fecha)} · 👤 Responsable: ${esc(i.inspector || "")}${i.copasst ? `<br>👥 Integrante del COPASST: ${esc(i.copasst)}` : ""}
         ${(T.campos || []).filter(c => d[c.id] && c.tipo !== "month").map(c => `<br>${c.label}: <strong>${esc(c.tipo === "date" ? formatoFecha(d[c.id]) : d[c.id])}</strong>`).join("")}
@@ -133,7 +133,7 @@ function verDetalle(id) {
 
 function exportar() {
     const filas = [["Fecha", "Código", "Tipo", "Lugar", "Ubicación", "Responsable", "Integrante COPASST", "Resultado", "Puntos que no cumplen", "Observaciones", "Fotos"]];
-    filtradas().forEach(i => filas.push([formatoFechaHora(i.fecha), i.el.codigo, TIPOS[i.el.tipo]?.nombre || i.el.tipo, lugarDe(i), i.el.ubicacion,
+    filtradas().forEach(i => filas.push([formatoFechaHora(i.fecha), i.el.codigo, nombreElemento(i.el), lugarDe(i), i.el.ubicacion,
         i.inspector, i.copasst, i.resultado === "conforme" ? "Conforme" : "Con novedades",
         (i.respuestas || []).filter(r => r.respuesta === "No cumple").map(r => r.pregunta + (r.nota ? ` (${r.nota})` : "")).join(" | "),
         i.observaciones, [...(i.fotos || []), ...(i.respuestas || []).map(r => r.foto).filter(Boolean)].join(" ")]));
