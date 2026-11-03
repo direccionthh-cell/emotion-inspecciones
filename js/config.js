@@ -17,4 +17,4 @@ const URL_PUBLICA = "https://direccionthh-cell.github.io/emotion-inspecciones/";
  * Pega aquí la URL de la aplicación web de Apps Script (google/copia-drive.gs).
  * Si está vacía, no se envía copia.
  */
-const URL_GOOGLE_DRIVE = "";
+const URL_GOOGLE_DRIVE = "https://script.google.com/a/macros/emotion-a.com/s/AKfycbw4xeFG7MHwAUKcWotn43SIwaylK5vY3u-VfEbf-werzRCi3F41XiYenV_MpWgQRIOy1w/exec";
